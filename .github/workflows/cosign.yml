@@ -1,0 +1,152 @@
+name: Cosign images
+
+on:
+  push:
+    paths:
+      - ".github/workflows/cosign.yml"
+      - "cosign/**"
+  pull_request:
+    paths:
+      - ".github/workflows/cosign.yml"
+      - "cosign/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  attestations: write
+
+env:
+  IMAGE_REPOSITORY: ghcr.io/${{ github.repository }}/cosign
+  IMAGE_CONTEXT: ./cosign
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tag: github-attestation
+            image_type: github-attestation
+            attestation: provenance
+            cosign_version: ""
+            sign_mode: ""
+          - tag: github-sbom
+            image_type: github-sbom
+            attestation: sbom
+            cosign_version: ""
+            sign_mode: ""
+          - tag: unsigned
+            image_type: unsigned
+            attestation: ""
+            cosign_version: ""
+            sign_mode: ""
+          - tag: v2-traditional
+            image_type: v2-traditional
+            attestation: ""
+            cosign_version: v2.4.1
+            sign_mode: key
+          - tag: v2-keyless
+            image_type: v2-keyless
+            attestation: ""
+            cosign_version: v2.4.1
+            sign_mode: keyless
+          - tag: v3-traditional
+            image_type: v3-traditional
+            attestation: ""
+            cosign_version: v3.0.4
+            sign_mode: key
+          - tag: v3-keyless
+            image_type: v3-keyless
+            attestation: ""
+            cosign_version: v3.0.4
+            sign_mode: keyless
+          - tag: v3-bundle
+            image_type: v3-bundle
+            attestation: ""
+            cosign_version: v3.0.4
+            sign_mode: key-digest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.IMAGE_CONTEXT }}
+          push: ${{ github.event_name != 'pull_request' }}
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ env.IMAGE_REPOSITORY }}:${{ matrix.tag }}
+          build-args: |
+            IMAGE_TYPE=${{ matrix.image_type }}
+
+      - name: Generate build provenance attestation
+        if: github.event_name != 'pull_request' && matrix.attestation == 'provenance'
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-name: ${{ env.IMAGE_REPOSITORY }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Generate SBOM
+        if: github.event_name != 'pull_request' && matrix.attestation == 'sbom'
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.IMAGE_REPOSITORY }}@${{ steps.build.outputs.digest }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      - name: Create SBOM attestation
+        if: github.event_name != 'pull_request' && matrix.attestation == 'sbom'
+        uses: actions/attest-sbom@v3
+        with:
+          subject-name: ${{ env.IMAGE_REPOSITORY }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          sbom-path: sbom.spdx.json
+          push-to-registry: true
+
+      - name: Install cosign
+        if: github.event_name != 'pull_request' && matrix.cosign_version != ''
+        run: |
+          curl -sSL -o /tmp/cosign "https://github.com/sigstore/cosign/releases/download/${{ matrix.cosign_version }}/cosign-linux-amd64"
+          sudo mv /tmp/cosign /usr/local/bin/cosign
+          sudo chmod +x /usr/local/bin/cosign
+          cosign version
+
+      - name: Sign image with cosign key
+        if: github.event_name != 'pull_request' && matrix.sign_mode == 'key'
+        env:
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          printf '%s' "${{ secrets.COSIGN_PRIVATE_KEY }}" > /tmp/cosign.key
+          cosign sign --key /tmp/cosign.key --yes "${{ env.IMAGE_REPOSITORY }}:${{ matrix.tag }}"
+          rm -f /tmp/cosign.key
+
+      - name: Sign image with cosign key by digest
+        if: github.event_name != 'pull_request' && matrix.sign_mode == 'key-digest'
+        env:
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          printf '%s' "${{ secrets.COSIGN_PRIVATE_KEY }}" > /tmp/cosign.key
+          cosign sign --key /tmp/cosign.key --yes "${{ env.IMAGE_REPOSITORY }}@${{ steps.build.outputs.digest }}"
+          rm -f /tmp/cosign.key
+
+      - name: Sign image with keyless cosign
+        if: github.event_name != 'pull_request' && matrix.sign_mode == 'keyless'
+        run: |
+          cosign sign --yes "${{ env.IMAGE_REPOSITORY }}:${{ matrix.tag }}"
