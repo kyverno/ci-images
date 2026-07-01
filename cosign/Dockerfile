@@ -5,4 +5,4 @@ ENV IMAGE_TYPE=${IMAGE_TYPE}
 
 WORKDIR /app
 
-CMD ["sh", "-c", "echo \"ci-images/cosign built from ${GITHUB_SHA:-local} (type: ${IMAGE_TYPE})\""]
+CMD ["sh", "-c", "echo \"test-images/cosign built from ${GITHUB_SHA:-local} (type: ${IMAGE_TYPE})\""]

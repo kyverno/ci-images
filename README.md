@@ -1,4 +1,4 @@
-# ci-images
+# test-images
 
 Container images used by Kyverno CI and test scenarios.
 
@@ -7,10 +7,10 @@ Container images used by Kyverno CI and test scenarios.
 Each top-level directory represents a separate image use-case. Images are
 published to a nested GHCR repository based on that directory name:
 
-- Example in this repository: `ghcr.io/kyverno/ci-images/cosign:<tag>`
+- Example in this repository: `ghcr.io/kyverno/test-images/cosign:<tag>`
 
 This keeps unrelated image families separated while still letting this
-repository host multiple CI image use-cases over time.
+repository host multiple CI/testing image use-cases over time.
 
 ## Current use-cases
 
