@@ -19,6 +19,7 @@ permissions:
 
 env:
   IMAGE_REPOSITORY: ghcr.io/${{ github.repository }}/cosign
+  PRIVATE_IMAGE_REPOSITORY: ghcr.io/${{ github.repository }}/cosign-private
   IMAGE_CONTEXT: ./cosign
 
 jobs:
@@ -79,7 +80,10 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          # CR_PAT (classic PAT, write:packages scope) is required to write
+          # cosign signature manifests to the private package. GITHUB_TOKEN is
+          # used as a fallback for the public package only.
+          password: ${{ secrets.CR_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -91,7 +95,9 @@ jobs:
           context: ${{ env.IMAGE_CONTEXT }}
           push: ${{ github.event_name != 'pull_request' }}
           platforms: linux/amd64,linux/arm64
-          tags: ${{ env.IMAGE_REPOSITORY }}:${{ matrix.tag }}
+          tags: |
+            ${{ env.IMAGE_REPOSITORY }}:${{ matrix.tag }}
+            ${{ env.PRIVATE_IMAGE_REPOSITORY }}:${{ matrix.tag }}
           build-args: |
             IMAGE_TYPE=${{ matrix.image_type }}
 
@@ -100,6 +106,14 @@ jobs:
         uses: actions/attest-build-provenance@v3
         with:
           subject-name: ${{ env.IMAGE_REPOSITORY }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Generate build provenance attestation (private)
+        if: github.event_name != 'pull_request' && matrix.attestation == 'provenance'
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-name: ${{ env.PRIVATE_IMAGE_REPOSITORY }}
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
@@ -120,6 +134,15 @@ jobs:
           sbom-path: sbom.spdx.json
           push-to-registry: true
 
+      - name: Create SBOM attestation (private)
+        if: github.event_name != 'pull_request' && matrix.attestation == 'sbom'
+        uses: actions/attest-sbom@v3
+        with:
+          subject-name: ${{ env.PRIVATE_IMAGE_REPOSITORY }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          sbom-path: sbom.spdx.json
+          push-to-registry: true
+
       - name: Install cosign
         if: github.event_name != 'pull_request' && matrix.cosign_version != ''
         run: |
@@ -135,6 +158,7 @@ jobs:
         run: |
           printf '%s' "${{ secrets.COSIGN_PRIVATE_KEY }}" > /tmp/cosign.key
           cosign sign --key /tmp/cosign.key --yes "${{ env.IMAGE_REPOSITORY }}:${{ matrix.tag }}"
+          cosign sign --key /tmp/cosign.key --yes "${{ env.PRIVATE_IMAGE_REPOSITORY }}:${{ matrix.tag }}"
           rm -f /tmp/cosign.key
 
       - name: Sign image with cosign key by digest
@@ -144,9 +168,11 @@ jobs:
         run: |
           printf '%s' "${{ secrets.COSIGN_PRIVATE_KEY }}" > /tmp/cosign.key
           cosign sign --key /tmp/cosign.key --yes "${{ env.IMAGE_REPOSITORY }}@${{ steps.build.outputs.digest }}"
+          cosign sign --key /tmp/cosign.key --yes "${{ env.PRIVATE_IMAGE_REPOSITORY }}@${{ steps.build.outputs.digest }}"
           rm -f /tmp/cosign.key
 
       - name: Sign image with keyless cosign
         if: github.event_name != 'pull_request' && matrix.sign_mode == 'keyless'
         run: |
           cosign sign --yes "${{ env.IMAGE_REPOSITORY }}:${{ matrix.tag }}"
+          cosign sign --yes "${{ env.PRIVATE_IMAGE_REPOSITORY }}:${{ matrix.tag }}"
