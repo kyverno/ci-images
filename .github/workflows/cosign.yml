@@ -2,6 +2,8 @@ name: Cosign images
 
 on:
   push:
+    branches:
+      - main
     paths:
       - ".github/workflows/cosign.yml"
       - "cosign/**"
