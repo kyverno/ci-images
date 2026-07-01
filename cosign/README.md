@@ -5,7 +5,7 @@ repository can now live under this use-case directory.
 
 ## Published image
 
-- `ghcr.io/kyverno/ci-images/cosign:<tag>`
+- `ghcr.io/kyverno/test-images/cosign:<tag>`
 
 ## Available tags
 
@@ -41,14 +41,14 @@ cosign verify-attestation \
   --type https://slsa.dev/provenance/v1 \
   --certificate-identity=https://github.com/kyverno/ci-images/.github/workflows/cosign.yml@refs/heads/main \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
-  ghcr.io/kyverno/ci-images/cosign:github-attestation
+  ghcr.io/kyverno/test-images/cosign:github-attestation
 
 # SBOM (SPDX)
 cosign verify-attestation \
   --type https://spdx.dev/Document \
   --certificate-identity=https://github.com/kyverno/ci-images/.github/workflows/cosign.yml@refs/heads/main \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
-  ghcr.io/kyverno/ci-images/cosign:github-sbom
+  ghcr.io/kyverno/test-images/cosign:github-sbom
 ```
 
 ### Key-based signatures
@@ -57,13 +57,13 @@ The public key is available at [`examples/cosign.pub`](examples/cosign.pub).
 
 ```bash
 # v2-traditional
-cosign verify --key examples/cosign.pub ghcr.io/kyverno/ci-images/cosign:v2-traditional
+cosign verify --key examples/cosign.pub ghcr.io/kyverno/test-images/cosign:v2-traditional
 
 # v3-traditional
-cosign verify --key examples/cosign.pub ghcr.io/kyverno/ci-images/cosign:v3-traditional
+cosign verify --key examples/cosign.pub ghcr.io/kyverno/test-images/cosign:v3-traditional
 
 # v3-bundle (signed by digest)
-cosign verify --key examples/cosign.pub ghcr.io/kyverno/ci-images/cosign:v3-bundle
+cosign verify --key examples/cosign.pub ghcr.io/kyverno/test-images/cosign:v3-bundle
 ```
 
 ### Keyless signatures
@@ -71,15 +71,15 @@ cosign verify --key examples/cosign.pub ghcr.io/kyverno/ci-images/cosign:v3-bund
 ```bash
 # v2-keyless
 cosign verify \
-  --certificate-identity=https://github.com/kyverno/ci-images/.github/workflows/cosign.yml@refs/heads/main \
+  --certificate-identity=https://github.com/kyverno/test-images/.github/workflows/cosign.yml@refs/heads/main \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
-  ghcr.io/kyverno/ci-images/cosign:v2-keyless
+  ghcr.io/kyverno/test-images/cosign:v2-keyless
 
 # v3-keyless
 cosign verify \
-  --certificate-identity=https://github.com/kyverno/ci-images/.github/workflows/cosign.yml@refs/heads/main \
+  --certificate-identity=https://github.com/kyverno/test-images/.github/workflows/cosign.yml@refs/heads/main \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
-  ghcr.io/kyverno/ci-images/cosign:v3-keyless
+  ghcr.io/kyverno/test-images/cosign:v3-keyless
 ```
 
 ## Kyverno policy compatibility
